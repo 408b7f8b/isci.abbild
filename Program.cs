@@ -150,6 +150,8 @@ namespace isci.abbild
                 if (ausfuehrungsmodell.AktuellerZustandModulAktivieren())
                 {
                     structure.Lesen();
+                    ausfuehrungsmodell.Folgezustand();
+                    structure.Zustand.WertInSpeicherSchreiben();
                 }
                 System.Threading.Thread.Sleep(1);
             }
