@@ -82,84 +82,87 @@ namespace isci.abbild
         {
             konfiguration = new Konfiguration(args);
 
-            start:
-
-            abbild = new List<string>();
-
-            var structure = new Datenstruktur(konfiguration);
-            var ausfuehrungsmodell = new Ausführungsmodell(konfiguration, structure.Zustand);
-
-            var beschreibung = new Modul(konfiguration.Identifikation, "isci.abbild")
+            while (true)
             {
-                Name = "Abbild Ressource " + konfiguration.Identifikation,
-                Beschreibung = "Modul zur Abbilderstellung gegen externe Datenbank"
-            };
-            beschreibung.Speichern(konfiguration.OrdnerBeschreibungen + "/" + konfiguration.Identifikation + ".json");
+                abbild = new List<string>();
 
-            structure.DatenmodelleEinhängenAusOrdner(konfiguration.OrdnerDatenmodelle);
-            structure.Start();
+                var structure = new Datenstruktur(konfiguration);
+                var ausfuehrungsmodell = new Ausführungsmodell(konfiguration, structure.Zustand);
 
-            var watcher = new System.IO.FileSystemWatcher()
-            {
-                Path = konfiguration.OrdnerDatenmodelle,
-                NotifyFilter = System.IO.NotifyFilters.LastWrite | System.IO.NotifyFilters.FileName | System.IO.NotifyFilters.DirectoryName,
-                Filter = "*.json" // Filter for JSON files
-            };
-
-            watcher.Changed += Neustarten;
-            watcher.Created += Neustarten;
-            watcher.Deleted += Neustarten;
-            watcher.Renamed += Neustarten;
-
-            watcher.EnableRaisingEvents = true;
-
-            influxDBClient = InfluxDBClientFactory.Create(konfiguration.influxDbAdresse, konfiguration.influxDbToken);
-            influxDBClient.SetLogLevel(InfluxDB.Client.Core.LogLevel.None);
-
-            var writeOptions = WriteOptions
-            .CreateNew()
-            .BatchSize(50000)
-            .FlushInterval(10000)
-            .Build();
-
-            writeApi = influxDBClient.GetWriteApi(writeOptions);
-            var orgname = (await influxDBClient.GetOrganizationsApi().FindOrganizationByIdAsync(konfiguration.influxDbOrganisationId)).Name;
-            
-            var bucketApi = influxDBClient.GetBucketsApi();
-            var bucketApiOrg = await bucketApi.FindBucketsByOrgNameAsync(orgname);
-
-            var buckets = new List<string>();
-            foreach (var bucket in bucketApiOrg)
-            {
-                buckets.Add(bucket.Name);
-            }
-
-            if (!buckets.Contains(konfiguration.Anwendung))
-            {
-                bucketApi.CreateBucketAsync(new Bucket(name:konfiguration.Anwendung, orgID:konfiguration.influxDbOrganisationId,
-                retentionRules:new List<BucketRetentionRules>(){
-                    new BucketRetentionRules(BucketRetentionRules.TypeEnum.Expire, 0, 60*60*24*365)
-                })).Wait();
-            }
-
-            var zyklischeAusfuehrungUpload = new System.Threading.Timer(AbbildErfassen, null, 0, konfiguration.pauseZwischenUploadsInMs);
-
-            //Arbeitsschleife
-            while (!neustarten)
-            {
-                if (ausfuehrungsmodell.AktuellerZustandModulAktivieren())
+                var beschreibung = new Modul(konfiguration.Identifikation, "isci.abbild")
                 {
-                    structure.Lesen();
-                    ausfuehrungsmodell.Folgezustand();
-                    structure.Zustand.WertInSpeicherSchreiben();
+                    Name = "Abbild Ressource " + konfiguration.Identifikation,
+                    Beschreibung = "Modul zur Abbilderstellung gegen externe Datenbank"
+                };
+                beschreibung.Speichern(konfiguration.OrdnerBeschreibungen + "/" + konfiguration.Identifikation + ".json");
+
+                structure.DatenmodelleEinhängenAusOrdner(konfiguration.OrdnerDatenmodelle);
+                structure.Start();
+
+                var watcher = new System.IO.FileSystemWatcher()
+                {
+                    Path = konfiguration.OrdnerDatenmodelle,
+                    NotifyFilter = System.IO.NotifyFilters.LastWrite | System.IO.NotifyFilters.FileName | System.IO.NotifyFilters.DirectoryName,
+                    Filter = "*.json" // Filter for JSON files
+                };
+
+                watcher.Changed += Neustarten;
+                watcher.Created += Neustarten;
+                watcher.Deleted += Neustarten;
+                watcher.Renamed += Neustarten;
+
+                watcher.EnableRaisingEvents = true;
+
+                influxDBClient = InfluxDBClientFactory.Create(konfiguration.influxDbAdresse, konfiguration.influxDbToken);
+                influxDBClient.SetLogLevel(InfluxDB.Client.Core.LogLevel.None);
+
+                var writeOptions = WriteOptions
+                .CreateNew()
+                .BatchSize(50000)
+                .FlushInterval(10000)
+                .Build();
+
+                writeApi = influxDBClient.GetWriteApi(writeOptions);
+                var orgname = (await influxDBClient.GetOrganizationsApi().FindOrganizationByIdAsync(konfiguration.influxDbOrganisationId)).Name;
+                
+                var bucketApi = influxDBClient.GetBucketsApi();
+                var bucketApiOrg = await bucketApi.FindBucketsByOrgNameAsync(orgname);
+
+                var buckets = new List<string>();
+                foreach (var bucket in bucketApiOrg)
+                {
+                    buckets.Add(bucket.Name);
                 }
-                System.Threading.Thread.Sleep(1);
+
+                if (!buckets.Contains(konfiguration.Anwendung))
+                {
+                    bucketApi.CreateBucketAsync(new Bucket(name:konfiguration.Anwendung, orgID:konfiguration.influxDbOrganisationId,
+                    retentionRules:new List<BucketRetentionRules>(){
+                        new BucketRetentionRules(BucketRetentionRules.TypeEnum.Expire, 0, 60*60*24*365)
+                    })).Wait();
+                }
+
+                var zyklischeAusfuehrungUpload = new System.Threading.Timer(AbbildErfassen, null, 0, konfiguration.pauseZwischenUploadsInMs);
+
+                //Arbeitsschleife
+                while (!neustarten)
+                {
+                    structure.Zustand.WertAusSpeicherLesen();
+                    
+                    if (ausfuehrungsmodell.AktuellerZustandModulAktivieren())
+                    {
+                        structure.Lesen();
+                        ausfuehrungsmodell.Folgezustand();
+                        structure.Zustand.WertInSpeicherSchreiben();
+                    }
+                    
+                    Helfer.SleepForMicroseconds(konfiguration.PauseArbeitsschleifeUs);
+                }
+
+                zyklischeAusfuehrungUpload.Dispose();
+
+                neustarten = false;
             }
-
-            zyklischeAusfuehrungUpload.Dispose();
-
-            neustarten = false;
-            goto start;
         }
     }
 }
