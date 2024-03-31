@@ -25,6 +25,10 @@ namespace isci.abbild
             public int minimaleAnzahlFuerDbUpload;
             [fromArgs, fromEnv]
             public int pauseZwischenUploadsInMs;
+            [fromArgs, fromEnv]
+            public int influxDbBatchSize = 50000;
+            [fromArgs, fromEnv]
+            public int influxDbFlushIntervall = 10000;
             public Konfiguration(string[] args) : base(args) { }
         }
 
@@ -118,8 +122,8 @@ namespace isci.abbild
 
                 var writeOptions = WriteOptions
                 .CreateNew()
-                .BatchSize(50000)
-                .FlushInterval(10000)
+                .BatchSize(konfiguration.influxDbBatchSize)
+                .FlushInterval(konfiguration.influxDbFlushIntervall)
                 .Build();
 
                 writeApi = influxDBClient.GetWriteApi(writeOptions);
