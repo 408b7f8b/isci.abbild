@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Linq;
-using System.Diagnostics;
 using System.Collections.Generic;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
-using isci;
 using isci.Allgemein;
 using isci.Beschreibung;
 using isci.Daten;
@@ -15,6 +12,7 @@ namespace isci.abbild
     {
         public class Konfiguration : Parameter
         {
+            #pragma warning disable CS0649
             [fromArgs, fromEnv]
             public string influxDbToken;
             [fromArgs, fromEnv]
@@ -25,10 +23,12 @@ namespace isci.abbild
             public int minimaleAnzahlFuerDbUpload;
             [fromArgs, fromEnv]
             public int pauseZwischenUploadsInMs;
+            #pragma warning restore CS0649
             [fromArgs, fromEnv]
             public int influxDbBatchSize = 50000;
             [fromArgs, fromEnv]
             public int influxDbFlushIntervall = 10000;
+
             public Konfiguration(string[] args) : base(args) { }
         }
 
@@ -90,7 +90,7 @@ namespace isci.abbild
             {
                 abbild = new List<string>();
 
-                var structure = new Datenstruktur(konfiguration);
+                structure = new Datenstruktur(konfiguration);
                 var ausfuehrungsmodell = new Ausführungsmodell(konfiguration, structure.Zustand);
 
                 var beschreibung = new Modul(konfiguration.Identifikation, "isci.abbild")
@@ -152,7 +152,7 @@ namespace isci.abbild
                 while (!neustarten)
                 {
                     structure.Zustand.WertAusSpeicherLesen();
-                    
+
                     if (ausfuehrungsmodell.AktuellerZustandModulAktivieren())
                     {
                         structure.Lesen();
