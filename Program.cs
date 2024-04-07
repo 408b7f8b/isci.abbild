@@ -16,6 +16,8 @@ namespace isci.abbild
             [fromArgs, fromEnv]
             public string influxDbToken;
             [fromArgs, fromEnv]
+            public string influxDbAdminToken;
+            [fromArgs, fromEnv]
             public string influxDbAdresse;
             [fromArgs, fromEnv]
             public string influxDbOrganisationId;
@@ -33,6 +35,7 @@ namespace isci.abbild
         }
 
         static List<string> abbild;
+        static bool zwischengespeichert_flag = false;
 
         static void AbbildErfassen(object state)
         {
@@ -65,7 +68,23 @@ namespace isci.abbild
 
             if (abbild.Count > konfiguration.minimaleAnzahlFuerDbUpload)
             {
-                writeApi.WriteRecords(abbild, bucket:konfiguration.Anwendung, org:konfiguration.influxDbOrganisationId, precision:WritePrecision.Ms);
+                try {
+                    writeApi.WriteRecords(abbild, bucket:konfiguration.Anwendung, org:konfiguration.influxDbOrganisationId, precision:WritePrecision.Ms);
+                    if (zwischengespeichert_flag == true)
+                    {
+                        Logger.Information("Zwischengespeichertes Datenabbild wird hochgeladen.");
+                        var zwischengespeichert = System.IO.File.ReadAllLines("abbild_datenpuffer");
+                        writeApi.WriteRecords(zwischengespeichert, bucket:konfiguration.Anwendung, org:konfiguration.influxDbOrganisationId, precision:WritePrecision.Ms);
+                        System.IO.File.WriteAllText("zwischengespeichert", "");
+                        zwischengespeichert_flag = false;
+                    }
+                } catch (System.Exception e)
+                {
+                    Logger.Fehler("Ausnahme beim Schreiben des Datenabbilds: " + e.Message);
+                    Logger.Information("Datenabbild wird zwischengespeichert.");
+                    System.IO.File.AppendAllLinesAsync("abbild_datenpuffer", abbild, System.Threading.CancellationToken.None);
+                    zwischengespeichert_flag = true;
+                }
                 abbild.Clear();
             }
         }
@@ -117,6 +136,14 @@ namespace isci.abbild
 
                 watcher.EnableRaisingEvents = true;
 
+                if (System.IO.File.Exists("zwischengespeichert"))
+                {
+                    if (System.IO.File.ReadAllText("zwischengespeichert") != "")
+                    {
+                        zwischengespeichert_flag = true;
+                    }
+                }
+
                 influxDBClient = InfluxDBClientFactory.Create(konfiguration.influxDbAdresse, konfiguration.influxDbToken);
                 influxDBClient.SetLogLevel(InfluxDB.Client.Core.LogLevel.None);
 
@@ -127,23 +154,53 @@ namespace isci.abbild
                 .Build();
 
                 writeApi = influxDBClient.GetWriteApi(writeOptions);
-                var orgname = (await influxDBClient.GetOrganizationsApi().FindOrganizationByIdAsync(konfiguration.influxDbOrganisationId)).Name;
-                
-                var bucketApi = influxDBClient.GetBucketsApi();
-                var bucketApiOrg = await bucketApi.FindBucketsByOrgNameAsync(orgname);
 
-                var buckets = new List<string>();
-                foreach (var bucket in bucketApiOrg)
+                if (konfiguration.influxDbAdminToken != "" && konfiguration.influxDbAdminToken != null)
                 {
-                    buckets.Add(bucket.Name);
-                }
+                    string orgname;
+                    while(true)
+                    {
+                        try {
+                            orgname = (await influxDBClient.GetOrganizationsApi().FindOrganizationByIdAsync(konfiguration.influxDbOrganisationId)).Name;
+                            break;
+                        } catch (System.Exception e)
+                        {
+                            Logger.Fehler("Ausnahme beim Abruf der Organisation. InfluxDB möglicherweise nicht erreichbar. " + e.Message);
+                        }
+                    }
 
-                if (!buckets.Contains(konfiguration.Anwendung))
-                {
-                    bucketApi.CreateBucketAsync(new Bucket(name:konfiguration.Anwendung, orgID:konfiguration.influxDbOrganisationId,
-                    retentionRules:new List<BucketRetentionRules>(){
-                        new BucketRetentionRules(BucketRetentionRules.TypeEnum.Expire, 0, 60*60*24*365)
-                    })).Wait();
+                    var bucketApi = influxDBClient.GetBucketsApi();
+
+                    List<Bucket> bucketApiOrg = new List<Bucket>();
+
+                    try {                    
+                        bucketApiOrg = await bucketApi.FindBucketsByOrgNameAsync(orgname);                    
+                    }
+                    catch (System.Exception e)
+                    {
+                        Logger.Fatal("Ausnahme beim Abruf der Buckets für die Organisation: " + e.Message);
+                    }
+
+                    var buckets = new List<string>();
+                    foreach (var bucket in bucketApiOrg)
+                    {
+                        Logger.Debug("Gefundener Bucket " + bucket.Name);
+                        buckets.Add(bucket.Name);
+                    }
+
+                    if (!buckets.Contains(konfiguration.Anwendung))
+                    {
+                        Logger.Information("Kein Bucket für Anwendung " + konfiguration.Anwendung + " existent. Erstelle neuen.");
+                        try {
+                            bucketApi.CreateBucketAsync(new Bucket(name:konfiguration.Anwendung, orgID:konfiguration.influxDbOrganisationId,
+                            retentionRules:new List<BucketRetentionRules>(){
+                                new BucketRetentionRules(BucketRetentionRules.TypeEnum.Expire, 0, 60*60*24*365)
+                            })).Wait();
+                        } catch (System.Exception e)
+                        {
+                            Logger.Fatal("Ausnahme beim Erstellen des Anwendungs-Buckets: " + e.Message);
+                        }
+                    }
                 }
 
                 var zyklischeAusfuehrungUpload = new System.Threading.Timer(AbbildErfassen, null, 0, konfiguration.pauseZwischenUploadsInMs);
