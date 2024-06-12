@@ -1,4 +1,4 @@
-name: Build and Publish isci.abbild
+name: Build and Publish isci.abbild linux-x64
 
 on:
   push:
@@ -17,6 +17,9 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+      with:
+        repository: '408b7f8b/isci'
+        path: 'isci'
     
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
@@ -29,25 +32,9 @@ jobs:
     - name: Build linux-x64
       run: dotnet publish -c Release -r linux-x64 -o ./tmp
       
-    - name: Build linux-arm64  
-      run: dotnet publish -c Release -r linux-arm64 -o ./tmp
-        
-    - name: Build windows-x64
-      run: dotnet publish -c Release -r win-x64 -o ./tmp
-      
     - uses: actions/upload-artifact@v3
       with:
         name: linux-x64
-        path: ./tmp
-        
-    - uses: actions/upload-artifact@v3
-      with:
-        name: linux-arm64
-        path: ./tmp
-        
-    - uses: actions/upload-artifact@v3
-      with:
-        name: windows-x64
         path: ./tmp
         
   docker-build:
@@ -64,22 +51,4 @@ jobs:
         
     - name: Build and push linux-x64 image
       run: |
-        docker build -t isci.abbild:linux-x64 .
-        
-    - name: Download linux-arm64 artifact  
-      uses: actions/download-artifact@v3
-      with:
-        name: linux-arm64
-        
-    - name: Build and push linux-arm64 image
-      run: |  
-        docker build -t isci.abbild:linux-arm64 --platform=linux/arm64 .
-        
-    - name: Download windows-x64 artifact
-      uses: actions/download-artifact@v3
-      with:
-        name: windows-x64
-        
-    - name: Build and push windows-x64 image
-      run: |
-        docker build -t isci.abbild:windows-x64 --platform=windows/amd64 .
+        docker build -t isci.abbild:linux-x64 --platform=linux/x64 .
