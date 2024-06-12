@@ -27,15 +27,17 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
         
     - name: Restore dependencies
-      run: dotnet restore
+      working-directory: ./isci.abbild
+      run: dotnet restore      
       
     - name: Build linux-x64
+      working-directory: ./isci.abbild
       run: dotnet publish -c Release -r linux-x64 -o ./tmp
       
     - uses: actions/upload-artifact@v3
       with:
         name: linux-x64
-        path: ./tmp
+        path: ./isci/.abbild/tmp
         
   docker-build:
     needs: build
