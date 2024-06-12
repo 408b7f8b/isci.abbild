@@ -10,7 +10,7 @@ namespace isci.abbild
 {
     class Program
     {
-        public class Konfiguration : Parameter
+        public class Konfiguration(string[] args) : Parameter(args)
         {
             #pragma warning disable CS0649
             [fromArgs, fromEnv]
@@ -24,14 +24,12 @@ namespace isci.abbild
             [fromArgs, fromEnv]
             public int minimaleAnzahlFuerDbUpload;
             [fromArgs, fromEnv]
-            public int pauseZwischenUploadsInMs;
+            public int pauseZwischenUploadsInMs = 15000;
             #pragma warning restore CS0649
             [fromArgs, fromEnv]
             public int influxDbBatchSize = 50000;
             [fromArgs, fromEnv]
             public int influxDbFlushIntervall = 10000;
-
-            public Konfiguration(string[] args) : base(args) { }
         }
 
         static List<string> abbild;
