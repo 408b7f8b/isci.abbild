@@ -2,9 +2,10 @@ name: Build and Publish isci.abbild
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '8.0'
