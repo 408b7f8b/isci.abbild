@@ -1,0 +1,63 @@
+image: mcr.microsoft.com/dotnet/sdk:8.0
+
+stages:
+  - build
+  - docker-build
+
+#variables:
+  #DOCKER_TLS_CERTDIR: "/certs"
+
+before_script:
+  - export DOCKER_HOST=tcp://docker:2375
+  - export DOCKER_TLS_VERIFY=0
+  #- export DOCKER_TLS_VERIFY=1
+  #- export DOCKER_CERT_PATH="$DOCKER_TLS_CERTDIR"
+  - export DOCKER_CERT_PATH="""
+
+build:linux-x64:
+  stage: build
+  script:
+    - dotnet restore
+    - dotnet publish -c Release -r linux-x64 -o ./tmp
+  artifacts:
+    paths:
+      - ./tmp
+
+build:linux-arm:
+  stage: build
+  script:
+    - dotnet restore
+    - dotnet publish -c Release -r linux-arm64 -o ./tmp
+  artifacts:
+    paths:
+      - ./tmp
+
+build:windows-x64:
+  stage: build
+  script:
+    - dotnet restore
+    - dotnet publish -c Release -r win-x64 -o ./tmp
+  artifacts:
+    paths:
+      - ./tmp
+
+docker-build:linux-x64:
+  stage: docker-build
+  script:
+    - docker build -t isci.abbild:linux-x64 .
+  dependencies:
+    - build:linux-x64
+
+docker-build:linux-arm:
+  stage: docker-build
+  script:
+    - docker build -t isci.abbild:linux-arm --platform=linux/arm64 .
+  dependencies:
+    - build:linux-arm
+
+docker-build:windows-x64:
+  stage: docker-build
+  script:
+    - docker build -t isci.abbild:windows-x64 --platform=windows/amd64 .
+  dependencies:
+    - build:windows-x64
